@@ -14,9 +14,9 @@ to use the script.
 Moreover an installation of [jupyter](https://jupyter.org) is needed to run the `*.ipynb` notebook.
 
 ## Repository structure:
-- The `forces_noncoding_multi.py` file containts the script to compute forces
+- The `NoncodingForces_v2_1.jl` file containts the script to compute forces
 in the non-coding case (without caring about codons); 
-- The `forces_example.ipynb` notebook contains a short tutorial of the
+- The `example.ipynb` notebook contains a short tutorial of the
 usage of the scripts.
 
 
