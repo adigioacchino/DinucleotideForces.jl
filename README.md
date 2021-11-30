@@ -9,7 +9,7 @@ For any question or comment concerning the code please contact Andrea Di Gioacch
 All of the code is written in Julia.
 
 ## Depdendencies
-`[FiniteDiff](https://github.com/JuliaDiff/FiniteDiff.jl`) must be installed
+[FiniteDiff.jl](https://github.com/JuliaDiff/FiniteDiff.jl) must be installed
 to use the script. 
 Moreover an installation of [jupyter](https://jupyter.org) is needed to run the `*.ipynb` notebook.
 
