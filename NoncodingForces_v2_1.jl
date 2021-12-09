@@ -284,4 +284,37 @@ function DimerForce(seq::String, motifs::Vector{String}; freqs=missing, toleranc
 end
 
 
+"""
+Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (as a single dict), 
+compute the energy of this sequence.
+"""
+function compute_energy(seq::String, fields_forces::Dict{String, Float64})
+    e = 0
+    for k in keys(fields_forces)
+        e += count(k, seq) * fields_forces[k]
+    end
+    return e
+end
+
+
+"""
+Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (as a single dict),
+compute the log-likelihood (energy minus log of Z) of this sequence.
+logZ can be passed directly if pre-computed, otherwise is it computed each time this function is called.
+"""
+function compute_loglikelihood(seq::String, fields_forces::Dict{String, Float64}; logZ=missing)
+    e = compute_energy(seq, fields_forces)
+    if ismissing(logZ)
+        ks = keys(fields_forces)
+        k1 = [k for k in ks if length(k)==1]
+        k2 = [k for k in ks if length(k)==2]
+        fields = [fields_forces[k] for k in k1]
+        forces = [fields_forces[k] for k in k2]
+        L = length(seq)
+        logz = eval_log_Z(fields, forces, k2, L)
+    end
+    return e - logz
+end
+
+
 end
