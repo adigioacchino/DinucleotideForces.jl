@@ -312,6 +312,8 @@ function compute_loglikelihood(seq::String, fields_forces::Dict{String, Float64}
         forces = [fields_forces[k] for k in k2]
         L = length(seq)
         logz = eval_log_Z(fields, forces, k2, L)
+    else
+        logz = logZ
     end
     return e - logz
 end
