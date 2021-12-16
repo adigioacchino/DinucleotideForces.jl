@@ -185,7 +185,6 @@ function DimerForce_withFields(seq::String, nucleotides::Vector{Char}, motifs::V
         n_obs_mots = [x+1 for x in n_obs_mots]
     end    
     n_obs = [n_obs_nucs; n_obs_mots]
-    
     # I need a function of a unique vector, so I use a "closure", a function defined within function to have access to freqs, motifs, L
     function closed_eval_log_Z(x)
         fields = zeros(4)
@@ -199,7 +198,10 @@ function DimerForce_withFields(seq::String, nucleotides::Vector{Char}, motifs::V
         forces = x[k:end]
         return eval_log_Z(fields, forces, motifs, L)
     end
-    vars = zeros(n_nucleotides + n_motifs)       
+    ###########################
+    #vars = vcat(fill(log(1/n_nucleotides), n_nucleotides), zeros(n_motifs))
+    vars =  zeros(n_nucleotides + n_motifs)
+    ###########################
     for l in 1:max_iter
         ns = FiniteDiff.finite_difference_gradient(closed_eval_log_Z, vars)        
         dn = FiniteDiff.finite_difference_hessian(closed_eval_log_Z, vars)
@@ -209,6 +211,11 @@ function DimerForce_withFields(seq::String, nucleotides::Vector{Char}, motifs::V
             break
         end        
         vars .+= delta
+        ############################
+        ## restore 1-sum gauge for fields
+        #k_1 = - log(sum(exp.(vars[1:4])))
+        #vars[1:4] .+= k_1
+        ############################
     end
 
     # format result
@@ -302,11 +309,15 @@ Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (
 compute the log-likelihood (energy minus log of Z) of this sequence.
 logZ can be passed directly if pre-computed, otherwise is it computed each time this function is called.
 """
-function compute_loglikelihood(seq::String, fields_forces::Dict{String, Float64}; logZ=missing)
+function compute_loglikelihood(seq::String, fields_forces::Dict{String, Float64}; logZ=missing, using_rna=false)
     e = compute_energy(seq, fields_forces)
     if ismissing(logZ)
         ks = keys(fields_forces)
-        k1 = [k for k in ks if length(k)==1]
+        if !using_rna
+            k1 = string.(dna_alphabet)
+        else
+            k1 = string.(rna_alphabet)
+        end
         k2 = [k for k in ks if length(k)==2]
         fields = [fields_forces[k] for k in k1]
         forces = [fields_forces[k] for k in k2]
