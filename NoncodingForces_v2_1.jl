@@ -330,4 +330,165 @@ function compute_loglikelihood(seq::String, fields_forces::Dict{String, Float64}
 end
 
 
+"""
+    marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int; using_rna=false)
+Given a model specified by fields and forces and sequence length, compute the 2-point marginal in position
+(i-1, i). The result is returned as a dictionary "s_(i-1) s_i" => probability.
+"""
+function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int; using_rna=false)
+    # collect fields and forces
+    ks = keys(fields_forces)
+    if !using_rna
+        k1 = string.(dna_alphabet)
+    else
+        k1 = string.(rna_alphabet)
+    end
+    k2 = [k for k in ks if length(k)==2]
+    fields = [fields_forces[k] for k in k1]
+    forces = [fields_forces[k] for k in k2]
+    
+    # build transfer matrices
+    motsM = generate_motsM(k2)
+    M = ones((len_alphabet, len_alphabet))
+    for j in 1:length(forces)
+        M .*= exp.(forces[j] * motsM[j])
+    end
+    TM = M .* generate_nucsM(fields, false) # this is the transfer matrix
+    last_mat = M .* generate_nucsM(fields, true) # last matrix is special
+
+    # compute marginals
+    @assert (pos >= 2) & (pos <= L) "Please provide a position 'pos' between 2 and L (included)."
+    pre_res = 0
+    if pos == 2
+        v = last_mat * ones(len_alphabet)
+        log_factors = 0
+        for i in 1:(L-3)
+            if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
+                f = norm(v)
+                log_factors += log(f)
+                t_v = v / f
+                v = TM * t_v
+            else
+                v = TM * v
+            end
+        end
+        pre_res = transpose(transpose(TM) .* v)
+        # take the log, reinsert the log_factors
+        pre_res = log.(pre_res) .+ log_factors
+        # normalize
+        pre_res = exp.(pre_res) ./ sum(exp.(pre_res))
+    elseif pos == L
+        v = transpose(ones(len_alphabet)) * TM 
+        log_factors = 0
+        for i in 1:(L-3)
+            if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
+                f = norm(v)
+                log_factors += log(f)
+                t_v = v / f
+                v = t_v * TM
+            else
+                v = v * TM
+            end
+        end
+        pre_res = transpose(transpose(last_mat) .* v)
+        # take the log, reinsert the log_factors
+        pre_res = log.(pre_res) .+ log_factors
+        # normalize
+        pre_res = exp.(pre_res) ./ sum(exp.(pre_res))        
+    else
+        v2 = last_mat * ones(len_alphabet)
+        log_factors2 = 0
+        for i in 1:(L-1-pos)
+            if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
+                f = norm(v2)
+                log_factors2 += log(f)
+                t_v = v2 / f
+                v2 = TM * t_v
+            else
+                v2 = TM * v2
+            end
+        end
+        v1 = transpose(ones(len_alphabet)) * TM 
+        log_factors1 = 0
+        for i in 1:(pos-3)
+            if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
+                f = norm(v1)
+                log_factors1 += log(f)
+                t_v = v1 / f
+                v1 = t_v * TM
+            else
+                v1 = v1 * TM
+            end
+        end
+        log_factors = log_factors1 + log_factors2
+        pre_res = transpose(transpose(TM) .* v1)
+        pre_res = transpose(transpose(pre_res) .* v2)
+        # take the log, reinsert the log_factors
+        pre_res = log.(pre_res) .+ log_factors
+        # normalize
+        pre_res = exp.(pre_res) ./ sum(exp.(pre_res))        
+    end
+    pre_res
+    # prepare output
+    res = Dict{String, Float64}()
+    for (i,a) in enumerate(k1)
+        for (j,b) in enumerate(k1)
+            res[a * b] = pre_res[i,j]
+        end
+    end
+    return res
 end
+
+
+"""
+    marginal_1point(marginal_2points; first::Bool=true)
+Given the 2point marginal, sum over the first symbol (if first=true, otherwise 
+on the second) to obtain the 1-point marginal.
+"""
+function marginal_1point(marginal_2points::Dict{String, Float64}; first::Bool=true)
+    alphabet = string.(unique(collect(prod(keys(marginal_2points)))))
+    mat = Array{Float64}(undef, 4,4)
+    for (i,a) in enumerate(alphabet)
+        for (j,b) in enumerate(alphabet)
+            mat[i,j] = marginal_2points[a*b]
+        end
+    end
+    if first
+        return Dict(zip(alphabet, vec(sum(mat, dims=2))))
+    else
+        return Dict(zip(alphabet, vec(sum(mat, dims=1))))
+    end
+end
+
+
+"""
+    marginal_1given_previous(marginal_2points::Dict{String, Float64}; first::Bool=true)
+Given the 2point marginal, fix the first symbol (if `first`=true, otherwise 
+fix the second) to obtain the probability of the second given that the first is equal
+to `fixed` (or viceversa if `first`=false).
+"""
+function marginal_1given_previous(marginal_2points::Dict{String, Float64}, fixed::String; first::Bool=true)
+    alphabet = string.(unique(collect(prod(keys(t)))))
+    mat = Array{Float64}(undef, 4,4)
+    for (i,a) in enumerate(alphabet)
+        for (j,b) in enumerate(alphabet)
+            mat[i,j] = marginal_2points[a*b]
+        end
+    end
+    @assert fixed in alphabet "Please fix the symbol as one from: $(alphabet)."
+    if first
+        row = findfirst(fixed .== alphabet)
+        t_res = mat[row,:]
+        res = t_res ./ sum(t_res)
+    else
+        col = findfirst(fixed .== alphabet)
+        t_res = mat[:,col]
+        res = t_res ./ sum(t_res)
+    end
+    return Dict(zip(alphabet, res))
+end
+
+
+
+
+end # end of the package
