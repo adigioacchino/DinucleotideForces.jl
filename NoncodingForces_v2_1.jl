@@ -468,7 +468,7 @@ fix the second) to obtain the probability of the second given that the first is 
 to `fixed` (or viceversa if `first`=false).
 """
 function marginal_1given_previous(marginal_2points::Dict{String, Float64}, fixed::String; first::Bool=true)
-    alphabet = string.(unique(collect(prod(keys(t)))))
+    alphabet = string.(unique(collect(prod(keys(marginal_2points)))))
     mat = Array{Float64}(undef, 4,4)
     for (i,a) in enumerate(alphabet)
         for (j,b) in enumerate(alphabet)
