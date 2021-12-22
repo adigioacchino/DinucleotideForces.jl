@@ -442,8 +442,8 @@ end
 
 """
     marginal_1point(marginal_2points; first::Bool=true)
-Given the 2point marginal, sum over the first symbol (if first=true, otherwise 
-on the second) to obtain the 1-point marginal.
+Given the 2point marginal, sum over the second symbol (if first=true, otherwise 
+over the first) to obtain the 1-point marginal.
 """
 function marginal_1point(marginal_2points::Dict{String, Float64}; first::Bool=true)
     alphabet = string.(unique(collect(prod(keys(marginal_2points)))))
