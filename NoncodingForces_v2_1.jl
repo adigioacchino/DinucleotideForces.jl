@@ -53,7 +53,7 @@ function eval_log_Z(fields, forces, motifs, L)
     TM = M .* generate_nucsM(fields, false) # this is the transfer matrix
     last_mat = M .* generate_nucsM(fields, true) # last matrix is special
     v = last_mat * v
-    tTM = ones((4, 4))
+    tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
     log_factors = 0
     for i in 1: L-2
         if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
@@ -363,7 +363,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
     pre_res = 0
     if pos == 2
         v = last_mat * ones(len_alphabet)
-        tTM = ones((4, 4))
+        tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
         log_factors = 0
         for i in 1:(L-3)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
@@ -374,7 +374,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
                 matmul!(tTM, tTM, TM)
             end
         end
-        v = tTM * v        
+        v = tTM * v
         pre_res = transpose(transpose(TM) .* v)
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
@@ -383,7 +383,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
         pre_res = exp.(pre_res) ./ sum(exp.(pre_res))
     elseif pos == L
         v = transpose(ones(len_alphabet)) * TM         
-        tTM = ones((4, 4))
+        tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
         log_factors = 0
         for i in 1:(L-3)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
@@ -404,7 +404,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
     else
         v2 = last_mat * ones(len_alphabet)
         log_factors2 = 0
-        tTM = ones((4, 4))
+        tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
         for i in 1:(L-1-pos)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
                 f = norm(tTM)
@@ -417,7 +417,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
         v2 = tTM * v2
         v1 = transpose(ones(len_alphabet)) * TM 
         log_factors1 = 0
-        tTM = ones((4, 4))
+        tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
         for i in 1:(pos-3)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
                 f = norm(tTM)
