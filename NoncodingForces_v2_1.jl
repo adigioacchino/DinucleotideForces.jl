@@ -363,17 +363,18 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
     pre_res = 0
     if pos == 2
         v = last_mat * ones(len_alphabet)
+        tTM = ones((4, 4))
         log_factors = 0
         for i in 1:(L-3)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
-                f = norm(v)
+                f = norm(tTM)
                 log_factors += log(f)
-                t_v = v / f
-                v = TM * t_v
+                matmul!(tTM, tTM, TM, 1/f)
             else
-                v = TM * v
+                matmul!(tTM, tTM, TM)
             end
         end
+        v = tTM * v        
         pre_res = transpose(transpose(TM) .* v)
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
@@ -381,18 +382,19 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
         pre_res = pre_res .- sign(pre_res[1]) * maximum(abs.(pre_res)) # to have logprobs closer to 0 
         pre_res = exp.(pre_res) ./ sum(exp.(pre_res))
     elseif pos == L
-        v = transpose(ones(len_alphabet)) * TM 
+        v = transpose(ones(len_alphabet)) * TM         
+        tTM = ones((4, 4))
         log_factors = 0
         for i in 1:(L-3)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
-                f = norm(v)
+                f = norm(tTM)
                 log_factors += log(f)
-                t_v = v / f
-                v = t_v * TM
+                matmul!(tTM, tTM, TM, 1/f)
             else
-                v = v * TM
+                matmul!(tTM, tTM, TM)
             end
         end
+        v = v * tTM
         pre_res = transpose(transpose(last_mat) .* v)
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
@@ -402,36 +404,35 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
     else
         v2 = last_mat * ones(len_alphabet)
         log_factors2 = 0
+        tTM = ones((4, 4))
         for i in 1:(L-1-pos)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
-                f = norm(v2)
+                f = norm(tTM)
                 log_factors2 += log(f)
-                t_v = v2 / f
-                v2 = TM * t_v
+                matmul!(tTM, tTM, TM, 1/f)
             else
-                v2 = TM * v2
+                matmul!(tTM, tTM, TM)
             end
         end
+        v2 = tTM * v2
         v1 = transpose(ones(len_alphabet)) * TM 
         log_factors1 = 0
+        tTM = ones((4, 4))
         for i in 1:(pos-3)
             if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
-                f = norm(v1)
+                f = norm(tTM)
                 log_factors1 += log(f)
-                t_v = v1 / f
-                v1 = t_v * TM
+                matmul!(tTM, tTM, TM, 1/f)
             else
-                v1 = v1 * TM
+                matmul!(tTM, tTM, TM)
             end
         end
-#        println("v1: $(v1), logf1: $(log_factors1)")
-#        println("v2: $(v2), logf2: $(log_factors2)")
+        v1 = v1 * tTM
         log_factors = log_factors1 + log_factors2
         pre_res = transpose(transpose(TM) .* v1)
         pre_res = transpose(transpose(pre_res) .* v2)
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
-#        println("pre_res before normalization: $(pre_res).")
         # normalize
         pre_res = pre_res .- sign(pre_res[1]) * maximum(abs.(pre_res)) # to have logprobs closer to 0
         pre_res = exp.(pre_res) ./ sum(exp.(pre_res))        
