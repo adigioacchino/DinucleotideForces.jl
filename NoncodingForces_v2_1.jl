@@ -376,6 +376,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
         # normalize
+        pre_res = pre_res .- sign(pre_res[1]) * maximum(abs.(pre_res)) # to have logprobs closer to 0 
         pre_res = exp.(pre_res) ./ sum(exp.(pre_res))
     elseif pos == L
         v = transpose(ones(len_alphabet)) * TM 
@@ -394,6 +395,7 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
         # normalize
+        pre_res = pre_res .- sign(pre_res[1]) * maximum(abs.(pre_res)) # to have logprobs closer to 0
         pre_res = exp.(pre_res) ./ sum(exp.(pre_res))        
     else
         v2 = last_mat * ones(len_alphabet)
@@ -420,12 +422,16 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
                 v1 = v1 * TM
             end
         end
+#        println("v1: $(v1), logf1: $(log_factors1)")
+#        println("v2: $(v2), logf2: $(log_factors2)")
         log_factors = log_factors1 + log_factors2
         pre_res = transpose(transpose(TM) .* v1)
         pre_res = transpose(transpose(pre_res) .* v2)
         # take the log, reinsert the log_factors
         pre_res = log.(pre_res) .+ log_factors
+#        println("pre_res before normalization: $(pre_res).")
         # normalize
+        pre_res = pre_res .- sign(pre_res[1]) * maximum(abs.(pre_res)) # to have logprobs closer to 0
         pre_res = exp.(pre_res) ./ sum(exp.(pre_res))        
     end
     pre_res
