@@ -1,6 +1,7 @@
 # added the possibility of inferring fields
 module NoncodingForces_v2_1
 
+using Octavian
 using LinearAlgebra
 using FiniteDiff
 
@@ -52,17 +53,18 @@ function eval_log_Z(fields, forces, motifs, L)
     TM = M .* generate_nucsM(fields, false) # this is the transfer matrix
     last_mat = M .* generate_nucsM(fields, true) # last matrix is special
     v = last_mat * v
+    tTM = ones((4, 4))
     log_factors = 0
     for i in 1: L-2
         if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
-            f = norm(v)
+            f = norm(tTM)
             log_factors += log(f)
-            t_v = v / f
-            v = TM * t_v
+            matmul!(tTM, tTM, TM, 1/f)
         else
-            v = TM * v
+            matmul!(tTM, tTM, TM)
         end
     end
+    v = tTM * v
     return log(sum(v)) + log_factors
 end
 
