@@ -4,6 +4,7 @@ module NoncodingForces_v2_1
 using Octavian
 using LinearAlgebra
 using FiniteDiff
+using Statistics
 
 #export 
 
@@ -173,15 +174,21 @@ function FixFinalGauge!(dict_vars::Dict{String, Float64}; using_rna=false)
 end
 
 
-function DimerForce_withFields(seq::String, nucleotides::Vector{Char}, motifs::Vector{String}; 
+function DimerForce_withFields(seq::Union{String,Vector{String}}, nucleotides::Vector{Char}, motifs::Vector{String}; 
                      tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true, using_rna=false)
     curr_alphabet = using_rna ? rna_alphabet : dna_alphabet
-    L = length(seq)
     n_nucleotides = length(nucleotides)
     n_motifs = length(motifs)
-    
-    n_obs_nucs = [count(string(m), seq) for m in nucleotides]
-    n_obs_mots = [count(m, seq, overlap=true) for m in motifs]
+    if typeof(seq) == String
+        seqs = [seq]
+    else
+        # all sequences used should have the same length
+        seqs = seq
+        @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
+    end
+    L = length(seqs[1]) 
+    n_obs_nucs = [mean(count.(string(m), seqs)) for m in nucleotides]
+    n_obs_mots = [mean(count.(m, seqs, overlap=true)) for m in motifs]   
     if add_pseudocount
         n_obs_nucs = [x+1 for x in n_obs_nucs]
         n_obs_mots = [x+1 for x in n_obs_mots]
@@ -229,11 +236,18 @@ function DimerForce_withFields(seq::String, nucleotides::Vector{Char}, motifs::V
 end
 
 
-function DimerForce_onlyForces(seq::String, motifs::Vector{String}, fields::Vector{Float64}; tolerance::Float64=0.01, 
-                     max_iter::Int=100, add_pseudocount=true, using_rna=false)
-    L = length(seq)
+function DimerForce_onlyForces(seq::Union{String,Vector{String}}, motifs::Vector{String}, fields::Vector{Float64}; 
+                               tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true, using_rna=false)
     n_motifs = length(motifs)
-    n_obs = [count(m, seq, overlap=true) for m in motifs]
+    if typeof(seq) == String
+        seqs = [seq]
+    else
+        # all sequences used should have the same length
+        seqs = seq
+        @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
+    end
+    L = length(seqs[1]) 
+    n_obs = [mean(count.(m, seqs, overlap=true)) for m in motifs]           
     if add_pseudocount
         n_obs = [x+1 for x in n_obs]
     end
@@ -258,6 +272,8 @@ end
 
 
 """
+    DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; freqs=missing, tolerance::Float64=0.01, 
+                     max_iter::Int=100, add_pseudocount=false, using_rna=false)
 If frequencies are given, return the forces on the motifs 'motifs' computed for sequence 'seq' with 
 the frequency bias given.
 If frequencies are not given, the local fields (NOT frequencies!) are inferred and returned (in a
@@ -269,8 +285,11 @@ independent.
 Finally, tolerance and max_iter are parameters for the Newton-Raphson algorithm 
 used to solve the system of equations.
 If add_pseudocount, a single pseudocount is added for each observed number of
-nucleotides and dinucleotides."""
-function DimerForce(seq::String, motifs::Vector{String}; freqs=missing, tolerance::Float64=0.01, 
+nucleotides and dinucleotides.
+seq can be a single sequence or a vector of sequences (in this second case, the sequences
+must have all the same length).
+"""
+function DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; freqs=missing, tolerance::Float64=0.01, 
                      max_iter::Int=100, add_pseudocount=false, using_rna=false)
     if ismissing(freqs) # infer also fields
         new_nts, new_mots = GaugeAwayVariables(motifs, true; using_rna)
