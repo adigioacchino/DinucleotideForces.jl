@@ -174,18 +174,12 @@ function FixFinalGauge!(dict_vars::Dict{String, Float64}; using_rna=false)
 end
 
 
-function DimerForce_withFields(seq::Union{String,Vector{String}}, nucleotides::Vector{Char}, motifs::Vector{String}; 
+function DimerForce_withFields(seqs::Vector{String}, nucleotides::Vector{Char}, motifs::Vector{String}; 
                      tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true, using_rna=false)
     curr_alphabet = using_rna ? rna_alphabet : dna_alphabet
     n_nucleotides = length(nucleotides)
     n_motifs = length(motifs)
-    if typeof(seq) == String
-        seqs = [seq]
-    else
-        # all sequences used should have the same length
-        seqs = seq
-        @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
-    end
+    @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
     L = length(seqs[1]) 
     n_obs_nucs = [mean(count.(string(m), seqs)) for m in nucleotides]
     n_obs_mots = [mean(count.(m, seqs, overlap=true)) for m in motifs]   
@@ -236,16 +230,10 @@ function DimerForce_withFields(seq::Union{String,Vector{String}}, nucleotides::V
 end
 
 
-function DimerForce_onlyForces(seq::Union{String,Vector{String}}, motifs::Vector{String}, fields::Vector{Float64}; 
+function DimerForce_onlyForces(seqs::Vector{String}, motifs::Vector{String}, fields::Vector{Float64}; 
                                tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true, using_rna=false)
     n_motifs = length(motifs)
-    if typeof(seq) == String
-        seqs = [seq]
-    else
-        # all sequences used should have the same length
-        seqs = seq
-        @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
-    end
+    @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."    
     L = length(seqs[1]) 
     n_obs = [mean(count.(m, seqs, overlap=true)) for m in motifs]           
     if add_pseudocount
@@ -272,8 +260,32 @@ end
 
 
 """
-    DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; freqs=missing, tolerance::Float64=0.01, 
-                     max_iter::Int=100, add_pseudocount=false, using_rna=false)
+    auto_find_best_L(seqs::Vector{String}, start_point::Int=5000)
+Utility function that finds the first local minimum as function of L larger or equal to 
+start_point that discards less nucleotides possible of the sequences of the list provided
+with the chunking procedure.
+"""
+function auto_find_best_L(seqs::Vector{String}, start_point::Int=5000)
+    best_sp = start_point
+    last_discard = sum(length.(seqs) .% start_point)
+    try_sp = start_point + 1
+    while true
+        try_discard = sum(length.(seqs) .% try_sp)
+        if try_discard >= last_discard
+            break
+        else
+            best_sp = try_sp
+            last_discard = try_discard
+            try_sp = best_sp + 1
+        end
+    end
+    return best_sp
+end
+
+"""
+    DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; L::Union{String,Int,Missing}=missing, 
+                    freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
+                    add_pseudocount=false, using_rna=false)
 If frequencies are given, return the forces on the motifs 'motifs' computed for sequence 'seq' with 
 the frequency bias given.
 If frequencies are not given, the local fields (NOT frequencies!) are inferred and returned (in a
@@ -288,13 +300,45 @@ If add_pseudocount, a single pseudocount is added for each observed number of
 nucleotides and dinucleotides.
 seq can be a single sequence or a vector of sequences (in this second case, the sequences
 must have all the same length).
+L can be used to speed up the computation (and to deal with sequences of different lenghts) by splitting
+each sequence in chunks of length L and treating them as independent sequences. Notice that if the length
+of a seq cannot be divided by L, the final part is discarded. Using L="auto" automatically tries to find
+the best possible L > 5000 (not to be used if sequences smaller than 5000 are used).
 """
-function DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; freqs=missing, tolerance::Float64=0.01, 
-                     max_iter::Int=100, add_pseudocount=false, using_rna=false)
+function DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; L::Union{String,Int,Missing}=missing, 
+                    freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
+                    add_pseudocount=false, using_rna=false)
+    # split the sequence(s) in chunks of length L, and treat them as independent sequences
+    if typeof(seq) == String
+        seqs = [seq]
+    else
+        seqs = seq        
+    end
+    spl_seqs = Vector{String}()
+    if ismissing(L)
+        if typeof(seq) == String
+            L = length(seq)
+        else
+            L = minimum(length.(seq))
+            println("Warning: sequences provided are of different lengths, so they are",
+                    " automatically cut to the length of the shortest sequence. ",
+                    """To better control errors, it is strongly suggested to use L="auto".""")
+        end
+        
+    elseif L == "auto"
+        L = auto_find_best_L(seqs)
+    else
+        @assert typeof(L) == Int """L must be an integer or the string "auto"."""
+        println("Warning: L used has not been tuned, it can result in considerable errors.",
+                """A better idea would be to use L="auto".""")
+    end
+    for ts in seqs        
+        spl_seqs = [spl_seqs; [ts[(i-1)*L+1:(i*L)] for i in 1:(length(ts)÷L)]]
+    end
     if ismissing(freqs) # infer also fields
         new_nts, new_mots = GaugeAwayVariables(motifs, true; using_rna)
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
-        t_res = DimerForce_withFields(seq, new_nts, new_mots; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForce_withFields(spl_seqs, new_nts, new_mots; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount, using_rna=using_rna)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return FixFinalGauge!(t_res; using_rna)
@@ -304,7 +348,7 @@ function DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; f
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
         # from freqs to fields
         fields = log.(freqs)
-        t_res = DimerForce_onlyForces(seq, new_mots, fields; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForce_onlyForces(spl_seqs, new_mots, fields; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount, using_rna=using_rna)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return t_res
