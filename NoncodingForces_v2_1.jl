@@ -56,7 +56,7 @@ function eval_log_Z(fields, forces, motifs, L)
     v = last_mat * v
     tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
     log_factors = 0
-    for i in 1: L-2
+    for i in 1: L-1
         if i%10 == 0 # each 10 steps normalize v and save log of norm in log_factors, to avoid overflow for long sequences
             f = norm(tTM)
             log_factors += log(f)
