@@ -363,7 +363,7 @@ compute the energy of this sequence.
 function compute_energy(seq::String, fields_forces::Dict{String, Float64})
     e = 0
     for k in keys(fields_forces)
-        e += count(k, seq) * fields_forces[k]
+        e += count(k, seq, overlap=true) * fields_forces[k]
     end
     return e
 end
