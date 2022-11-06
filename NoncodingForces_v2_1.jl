@@ -9,7 +9,6 @@ using Statistics
 #export 
 
 const dna_alphabet = ['A', 'C', 'G', 'T']
-const rna_alphabet = ['A', 'C', 'G', 'U']
 const len_alphabet = 4
 
 
@@ -18,12 +17,8 @@ Return the matrices used for the computation of the
 partition function for each motif in motifs. In particular, M_{ij} is the number of times 
 the given motif appears in n(i) + n(j), with n(i) the i-th nucleotide.
 """
-function generate_motsM(motifs::Vector{String}, using_rna::Bool=false)
-    if using_rna
-        [[count(m, n1*n2, overlap=true) for n1 in rna_alphabet, n2 in rna_alphabet] for m in motifs]
-    else
-        [[count(m, n1*n2, overlap=true) for n1 in dna_alphabet, n2 in dna_alphabet] for m in motifs]
-    end
+function generate_motsM(motifs::Vector{<:AbstractString})
+    [[count(m, n1*n2, overlap=true) for n1 in dna_alphabet, n2 in dna_alphabet] for m in motifs]
 end
 
 
@@ -74,8 +69,8 @@ end
 This function returns the nucleotides or motifs that have to be inferred after
 as many variables as possible are fixed to 0 through gauge transformations.
 """
-function GaugeAwayVariables(motifs::Vector{String}, fields::Bool; using_rna=false)
-    curr_alphabet = using_rna ? rna_alphabet : dna_alphabet
+function GaugeAwayVariables(motifs::Vector{<:AbstractString}, fields::Bool)
+    curr_alphabet = dna_alphabet
     n_motifs = length(motifs)
     if fields
         # check which nts I must include (no gauge transf to set them to 0)
@@ -134,8 +129,8 @@ as possible is included in the field, by putting other motifs to 0
 (if possible, those of the form AA, CC, GG, TT and those ending 
 with T).
 """
-function FixFinalGauge!(dict_vars::Dict{String, Float64}; using_rna=false)
-    curr_alphabet = using_rna ? string.(rna_alphabet) : string.(dna_alphabet) 
+function FixFinalGauge!(dict_vars::Dict{String, Float64})
+    curr_alphabet = string.(dna_alphabet) 
     all_vars = collect(keys(dict_vars))
     nts = [x for x in all_vars if length(x)==1]
     mots = [x for x in all_vars if length(x)==2]
@@ -174,15 +169,56 @@ function FixFinalGauge!(dict_vars::Dict{String, Float64}; using_rna=false)
 end
 
 
-function DimerForce_withFields(seqs::Vector{String}, nucleotides::Vector{Char}, motifs::Vector{String}; 
-                     tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true, using_rna=false)
-    curr_alphabet = using_rna ? rna_alphabet : dna_alphabet
+"""
+    _preprocess_seqs(seqs_in::Vector{<:AbstractString})
+Pre-process the vector of sequences `seqs_in`, so that sequences only contains letters A, C, G, T.
+The pre-processed sequence vector is the returned.
+"""
+function _preprocess_seqs(seqs_in::Vector{<:AbstractString})
+    seqs_out = [replace(s, "U" => "T") for s in seqs_in]
+    for s in seqs_out
+        unique_nt_counts = sum([count(m, s) for m in dna_alphabet])
+        if length(s) != unique_nt_counts
+            println("Warning: one or more sequences have a non-ACGT/U nucleotide symbol.")
+            break
+        end
+    end
+    return seqs_out
+end
+    
+    
+"""
+    _compute_n_obs(seqs::Vector{<:AbstractString}, independent_motifs::Vector{<:AbstractString}, L::Int)
+For each motif in `independent_motifs`, compute the number of observed motifs in each sequence
+in `seqs`, then divide by the sequence length, take the average of these intensive fractions
+over the sequences, and multiply by the model length L.
+"""
+function _compute_n_obs(seqs::Vector{<:AbstractString}, independent_motifs::Vector{<:AbstractString}, L::Int)
+    Lseqs = length.(seqs)
+    return L .* [mean(count.(m, seqs, overlap=true) ./ Lseqs) for m in independent_motifs]    
+end
+
+
+function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vector{Char}, motifs::Vector{<:AbstractString}; 
+                     tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
+    curr_alphabet = dna_alphabet
     n_nucleotides = length(nucleotides)
     n_motifs = length(motifs)
+    
+    
+    
     @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
     L = length(seqs[1]) 
+    
+    
+    
+    
     n_obs_nucs = [mean(count.(string(m), seqs)) for m in nucleotides]
     n_obs_mots = [mean(count.(m, seqs, overlap=true)) for m in motifs]   
+    
+    
+    
+    
     if add_pseudocount
         n_obs_nucs = [x+1 for x in n_obs_nucs]
         n_obs_mots = [x+1 for x in n_obs_mots]
@@ -230,8 +266,8 @@ function DimerForce_withFields(seqs::Vector{String}, nucleotides::Vector{Char}, 
 end
 
 
-function DimerForce_onlyForces(seqs::Vector{String}, motifs::Vector{String}, fields::Vector{Float64}; 
-                               tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true, using_rna=false)
+function DimerForce_onlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:AbstractString}, fields::Vector{Float64}; 
+                               tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
     n_motifs = length(motifs)
     @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."    
     L = length(seqs[1]) 
@@ -260,12 +296,12 @@ end
 
 
 """
-    auto_find_best_L(seqs::Vector{String}, start_point::Int=5000)
+    auto_find_best_L(seqs::Vector{<:AbstractString}, start_point::Int=5000)
 Utility function that finds the first local minimum as function of L larger or equal to 
 start_point that discards less nucleotides possible of the sequences of the list provided
 with the chunking procedure.
 """
-function auto_find_best_L(seqs::Vector{String}, start_point::Int=5000)
+function auto_find_best_L(seqs::Vector{<:AbstractString}, start_point::Int=5000)
     best_sp = start_point
     last_discard = sum(length.(seqs) .% start_point)
     try_sp = start_point + 1
@@ -283,9 +319,9 @@ function auto_find_best_L(seqs::Vector{String}, start_point::Int=5000)
 end
 
 """
-    DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; L::Union{String,Int,Missing}=missing, 
+    DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}; L::Union{AbstractString,Int,Missing}=missing, 
                     freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
-                    add_pseudocount=false, using_rna=false)
+                    add_pseudocount=false)
 If frequencies are given, return the forces on the motifs 'motifs' computed for sequence 'seq' with 
 the frequency bias given.
 If frequencies are not given, the local fields (NOT frequencies!) are inferred and returned (in a
@@ -305,18 +341,18 @@ each sequence in chunks of length L and treating them as independent sequences. 
 of a seq cannot be divided by L, the final part is discarded. Using L="auto" automatically tries to find
 the best possible L > 5000 (not to be used if sequences smaller than 5000 are used).
 """
-function DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; L::Union{String,Int,Missing}=missing, 
+function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}; L::Union{AbstractString,Int,Missing}=missing, 
                     freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
-                    add_pseudocount=false, using_rna=false)
+                    add_pseudocount=false)
     # split the sequence(s) in chunks of length L, and treat them as independent sequences
-    if typeof(seq) == String
+    if typeof(seq) <:AbstractString
         seqs = [seq]
     else
         seqs = seq        
     end
     spl_seqs = Vector{String}()
     if ismissing(L)
-        if typeof(seq) == String
+        if typeof(seq) <:AbstractString
             L = length(seq)
         else
             L = minimum(length.(seq))
@@ -336,20 +372,20 @@ function DimerForce(seq::Union{String,Vector{String}}, motifs::Vector{String}; L
         spl_seqs = [spl_seqs; [ts[(i-1)*L+1:(i*L)] for i in 1:(length(ts)÷L)]]
     end
     if ismissing(freqs) # infer also fields
-        new_nts, new_mots = GaugeAwayVariables(motifs, true; using_rna)
+        new_nts, new_mots = GaugeAwayVariables(motifs, true)
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
         t_res = DimerForce_withFields(spl_seqs, new_nts, new_mots; tolerance=tolerance, max_iter=max_iter, 
-                                     add_pseudocount=add_pseudocount, using_rna=using_rna)
+                                     add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
-        return FixFinalGauge!(t_res; using_rna)
+        return FixFinalGauge!(t_res)
     else # do not infer fields
         @assert isapprox(sum(freqs), 1) "When frequencies are provided, they must sum to 1."
-        new_mots = GaugeAwayVariables(motifs, false; using_rna)
+        new_mots = GaugeAwayVariables(motifs, false)
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
         # from freqs to fields
         fields = log.(freqs)
         t_res = DimerForce_onlyForces(spl_seqs, new_mots, fields; tolerance=tolerance, max_iter=max_iter, 
-                                     add_pseudocount=add_pseudocount, using_rna=using_rna)
+                                     add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return t_res
     end
@@ -360,7 +396,7 @@ end
 Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (as a single dict), 
 compute the energy of this sequence.
 """
-function compute_energy(seq::String, fields_forces::Dict{String, Float64})
+function compute_energy(seq::AbstractString, fields_forces::Dict{String, Float64})
     e = 0
     for k in keys(fields_forces)
         e += count(k, seq, overlap=true) * fields_forces[k]
@@ -374,15 +410,11 @@ Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (
 compute the log-likelihood (energy minus log of Z) of this sequence.
 logZ can be passed directly if pre-computed, otherwise is it computed each time this function is called.
 """
-function compute_loglikelihood(seq::String, fields_forces::Dict{String, Float64}; logZ=missing, using_rna=false)
+function compute_loglikelihood(seq::AbstractString, fields_forces::Dict{String, Float64}; logZ=missing)
     e = compute_energy(seq, fields_forces)
     if ismissing(logZ)
         ks = keys(fields_forces)
-        if !using_rna
-            k1 = string.(dna_alphabet)
-        else
-            k1 = string.(rna_alphabet)
-        end
+        k1 = string.(dna_alphabet)
         k2 = [k for k in ks if length(k)==2]
         fields = [fields_forces[k] for k in k1]
         forces = [fields_forces[k] for k in k2]
@@ -396,18 +428,14 @@ end
 
 
 """
-    marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int; using_rna=false)
+    marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int)
 Given a model specified by fields and forces and sequence length, compute the 2-point marginal in position
 (i-1, i). The result is returned as a dictionary "s_(i-1) s_i" => probability.
 """
-function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int; using_rna=false)
+function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int)
     # collect fields and forces
     ks = keys(fields_forces)
-    if !using_rna
-        k1 = string.(dna_alphabet)
-    else
-        k1 = string.(rna_alphabet)
-    end
+    k1 = string.(dna_alphabet)
     k2 = [k for k in ks if length(k)==2]
     fields = [fields_forces[k] for k in k1]
     forces = [fields_forces[k] for k in k2]
@@ -539,7 +567,7 @@ Given the 2point marginal, fix the first symbol (if `first`=true, otherwise
 fix the second) to obtain the probability of the second given that the first is equal
 to `fixed` (or viceversa if `first`=false).
 """
-function marginal_1given_previous(marginal_2points::Dict{String, Float64}, fixed::String; first::Bool=true)
+function marginal_1given_previous(marginal_2points::Dict{String, Float64}, fixed::AbstractString; first::Bool=true)
     alphabet = string.(unique(collect(prod(keys(marginal_2points)))))
     mat = Array{Float64}(undef, 4,4)
     for (i,a) in enumerate(alphabet)
