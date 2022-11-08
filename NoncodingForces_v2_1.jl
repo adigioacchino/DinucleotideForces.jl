@@ -193,31 +193,32 @@ For each motif in `independent_motifs`, compute the number of observed motifs in
 in `seqs`, then divide by the sequence length, take the average of these intensive fractions
 over the sequences, and multiply by the model length L.
 """
-function _compute_n_obs(seqs::Vector{<:AbstractString}, independent_motifs::Vector{<:AbstractString}, L::Int)
+function _compute_n_obs(seqs::Vector{<:AbstractString}, independent_motifs::Union{Vector{<:AbstractString},Vector{<:AbstractChar}}, L::Int)
     Lseqs = length.(seqs)
     return L .* [mean(count.(m, seqs, overlap=true) ./ Lseqs) for m in independent_motifs]    
 end
 
 
-function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vector{Char}, motifs::Vector{<:AbstractString}; 
-                     tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
+function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vector{Char}, motifs::Vector{<:AbstractString}, 
+                     Lmodel::Union{Int,Missing}=missing; tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
     curr_alphabet = dna_alphabet
     n_nucleotides = length(nucleotides)
     n_motifs = length(motifs)
-    
-    
-    
-    @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."
-    L = length(seqs[1]) 
-    
-    
-    
-    
-    n_obs_nucs = [mean(count.(string(m), seqs)) for m in nucleotides]
-    n_obs_mots = [mean(count.(m, seqs, overlap=true)) for m in motifs]   
-    
-    
-    
+    seqs_dna = _preprocess_seqs(seqs)
+    # compute sequence length
+    if ismissing(Lmodel)
+        if all(length.(seqs_dna) .== length(seqs_dna[1]))
+            L = length(seqs_dna[1])
+        else
+            L = 5000
+            println("Warning: Lmodel is not specified and the sequence set provided contains sequences",
+                    " of different lengths. Using an arbitrary value of L=5000.")
+        end
+    else
+        L = Lmodel
+    end    
+    n_obs_nucs = _compute_n_obs(seqs_dna, nucleotides, L)
+    n_obs_mots = _compute_n_obs(seqs_dna, motifs, L)    
     
     if add_pseudocount
         n_obs_nucs = [x+1 for x in n_obs_nucs]
@@ -266,12 +267,23 @@ function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vect
 end
 
 
-function DimerForce_onlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:AbstractString}, fields::Vector{Float64}; 
-                               tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
+function DimerForce_onlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:AbstractString}, fields::Vector{Float64},
+                                Lmodel::Union{Int,Missing}=missing; tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
     n_motifs = length(motifs)
-    @assert all(length.(seqs) .== length(seqs[1])) "Sequences provided must all have the same length."    
-    L = length(seqs[1]) 
-    n_obs = [mean(count.(m, seqs, overlap=true)) for m in motifs]           
+    seqs_dna = _preprocess_seqs(seqs)
+    # compute sequence length
+    if ismissing(Lmodel)
+        if all(length.(seqs_dna) .== length(seqs_dna[1]))
+            L = length(seqs_dna[1])
+        else
+            L = 5000
+            println("Warning: Lmodel is not specified and the sequence set provided contains sequences",
+                    " of different lengths. Using an arbitrary value of L=5000.")
+        end
+    else
+        L = Lmodel
+    end    
+    n_obs = _compute_n_obs(seqs_dna, motifs, L)
     if add_pseudocount
         n_obs = [x+1 for x in n_obs]
     end
@@ -296,30 +308,7 @@ end
 
 
 """
-    auto_find_best_L(seqs::Vector{<:AbstractString}, start_point::Int=5000)
-Utility function that finds the first local minimum as function of L larger or equal to 
-start_point that discards less nucleotides possible of the sequences of the list provided
-with the chunking procedure.
-"""
-function auto_find_best_L(seqs::Vector{<:AbstractString}, start_point::Int=5000)
-    best_sp = start_point
-    last_discard = sum(length.(seqs) .% start_point)
-    try_sp = start_point + 1
-    while true
-        try_discard = sum(length.(seqs) .% try_sp)
-        if try_discard >= last_discard
-            break
-        else
-            best_sp = try_sp
-            last_discard = try_discard
-            try_sp = best_sp + 1
-        end
-    end
-    return best_sp
-end
-
-"""
-    DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}; L::Union{AbstractString,Int,Missing}=missing, 
+    DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}; L::Union{Int,Missing}=missing, 
                     freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
                     add_pseudocount=false)
 If frequencies are given, return the forces on the motifs 'motifs' computed for sequence 'seq' with 
@@ -336,12 +325,10 @@ If add_pseudocount, a single pseudocount is added for each observed number of
 nucleotides and dinucleotides.
 seq can be a single sequence or a vector of sequences (in this second case, the sequences
 must have all the same length).
-L can be used to speed up the computation (and to deal with sequences of different lenghts) by splitting
-each sequence in chunks of length L and treating them as independent sequences. Notice that if the length
-of a seq cannot be divided by L, the final part is discarded. Using L="auto" automatically tries to find
-the best possible L > 5000 (not to be used if sequences smaller than 5000 are used).
+L can be used to define the length of the modeled sequence. If not given, the length of the sequence will be used if a single 
+sequence or a set of sequences of the same lengths are provided. Otherwise, the default value of 5000 will be used.
 """
-function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}; L::Union{AbstractString,Int,Missing}=missing, 
+function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}, L::Union{Int,Missing}=missing;
                     freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
                     add_pseudocount=false)
     # split the sequence(s) in chunks of length L, and treat them as independent sequences
@@ -350,31 +337,10 @@ function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs:
     else
         seqs = seq        
     end
-    spl_seqs = Vector{String}()
-    if ismissing(L)
-        if typeof(seq) <:AbstractString
-            L = length(seq)
-        else
-            L = minimum(length.(seq))
-            println("Warning: sequences provided are of different lengths, so they are",
-                    " automatically cut to the length of the shortest sequence. ",
-                    """To better control errors, it is strongly suggested to use L="auto".""")
-        end
-        
-    elseif L == "auto"
-        L = auto_find_best_L(seqs)
-    else
-        @assert typeof(L) == Int """L must be an integer or the string "auto"."""
-        println("Warning: L used has not been tuned, it can result in considerable errors.",
-                """A better idea would be to use L="auto".""")
-    end
-    for ts in seqs        
-        spl_seqs = [spl_seqs; [ts[(i-1)*L+1:(i*L)] for i in 1:(length(ts)÷L)]]
-    end
     if ismissing(freqs) # infer also fields
         new_nts, new_mots = GaugeAwayVariables(motifs, true)
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
-        t_res = DimerForce_withFields(spl_seqs, new_nts, new_mots; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForce_withFields(seqs, new_nts, new_mots; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return FixFinalGauge!(t_res)
@@ -384,7 +350,7 @@ function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs:
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
         # from freqs to fields
         fields = log.(freqs)
-        t_res = DimerForce_onlyForces(spl_seqs, new_mots, fields; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForce_onlyForces(seqs, new_mots, fields; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return t_res
