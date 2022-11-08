@@ -328,9 +328,9 @@ must have all the same length).
 L can be used to define the length of the modeled sequence. If not given, the length of the sequence will be used if a single 
 sequence or a set of sequences of the same lengths are provided. Otherwise, the default value of 5000 will be used.
 """
-function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}, L::Union{Int,Missing}=missing;
-                    freqs::Union{Vector{Float64},Missing}=missing, tolerance::Float64=0.01, max_iter::Int=100, 
-                    add_pseudocount=false)
+function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs::Vector{<:AbstractString}, 
+                    L::Union{Int,Missing}=missing; freqs::Union{Vector{Float64},Missing}=missing, 
+                    tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=false)
     # split the sequence(s) in chunks of length L, and treat them as independent sequences
     if typeof(seq) <:AbstractString
         seqs = [seq]
@@ -340,7 +340,7 @@ function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs:
     if ismissing(freqs) # infer also fields
         new_nts, new_mots = GaugeAwayVariables(motifs, true)
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
-        t_res = DimerForce_withFields(seqs, new_nts, new_mots; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForce_withFields(seqs, new_nts, new_mots, L; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return FixFinalGauge!(t_res)
@@ -350,7 +350,7 @@ function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs:
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
         # from freqs to fields
         fields = log.(freqs)
-        t_res = DimerForce_onlyForces(seqs, new_mots, fields; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForce_onlyForces(seqs, new_mots, fields, L; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return t_res
