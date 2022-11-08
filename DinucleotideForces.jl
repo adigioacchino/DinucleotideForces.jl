@@ -1,5 +1,5 @@
 # added the possibility of inferring fields
-module NoncodingForces_v2_1
+module DinucleotideForces
 
 using Octavian
 using LinearAlgebra
