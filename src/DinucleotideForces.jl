@@ -1,4 +1,3 @@
-# added the possibility of inferring fields
 module DinucleotideForces
 
 using Octavian
@@ -6,7 +5,7 @@ using LinearAlgebra
 using FiniteDiff
 using Statistics
 
-#export 
+export DimerForce
 
 const dna_alphabet = ['A', 'C', 'G', 'T']
 const len_alphabet = 4
@@ -17,7 +16,7 @@ Return the matrices used for the computation of the
 partition function for each motif in motifs. In particular, M_{ij} is the number of times 
 the given motif appears in n(i) + n(j), with n(i) the i-th nucleotide.
 """
-function generate_motsM(motifs::Vector{<:AbstractString})
+function GenerateMotifMatrix(motifs::Vector{<:AbstractString})
     [[count(m, n1*n2, overlap=true) for n1 in dna_alphabet, n2 in dna_alphabet] for m in motifs]
 end
 
@@ -25,10 +24,10 @@ end
 """
 Return a matrix with the informations about the nt frequences, so that
 when it is multiplied elementwise with that obtained through 
-generate_motsM (after implementing the exponentiation with the force, see eval_log_Z),
+GenerateMotifMatrix (after implementing the exponentiation with the force, see EvaluateLogZ),
 the transfer matrices used to compute Z are finally obtained.
 """
-function generate_nucsM(fields::Vector{Float64}, last::Bool)
+function GenerateNucleotideMatrix(fields::Vector{Float64}, last::Bool)
     if !last
         [exp(f) for f in fields, i in 1:len_alphabet]
     else
@@ -37,17 +36,17 @@ function generate_nucsM(fields::Vector{Float64}, last::Bool)
 end
 
 
-"""Compute the transfer matrix through generate_motsM, generate_freqsM and the forces given,
+"""Compute the transfer matrix through GenerateMotifMatrix, generate_freqsM and the forces given,
 then takes the correct power to obtian Z."""
-function eval_log_Z(fields, forces, motifs, L)
+function EvaluateLogZ(fields, forces, motifs, L)
     v = ones(len_alphabet)
-    motsM = generate_motsM(motifs)
+    motsM = GenerateMotifMatrix(motifs)
     M = ones((len_alphabet, len_alphabet))
     for j in 1:length(forces)
         M .*= exp.(forces[j] * motsM[j])
     end
-    TM = M .* generate_nucsM(fields, false) # this is the transfer matrix
-    last_mat = M .* generate_nucsM(fields, true) # last matrix is special
+    TM = M .* GenerateNucleotideMatrix(fields, false) # this is the transfer matrix
+    last_mat = M .* GenerateNucleotideMatrix(fields, true) # last matrix is special
     v = last_mat * v
     tTM = Matrix{Float64}(I, len_alphabet, len_alphabet)
     log_factors = 0
@@ -170,11 +169,11 @@ end
 
 
 """
-    _preprocess_seqs(seqs_in::Vector{<:AbstractString})
+    PreprocessSequences(seqs_in::Vector{<:AbstractString})
 Pre-process the vector of sequences `seqs_in`, so that sequences only contains letters A, C, G, T.
 The pre-processed sequence vector is the returned.
 """
-function _preprocess_seqs(seqs_in::Vector{<:AbstractString})
+function PreprocessSequences(seqs_in::Vector{<:AbstractString})
     seqs_out = [replace(s, "U" => "T") for s in seqs_in]
     for s in seqs_out
         unique_nt_counts = sum([count(m, s) for m in dna_alphabet])
@@ -188,23 +187,28 @@ end
     
     
 """
-    _compute_n_obs(seqs::Vector{<:AbstractString}, independent_motifs::Vector{<:AbstractString}, L::Int)
+    ComputeNumObservations(seqs::Vector{<:AbstractString}, independent_motifs::Vector{<:AbstractString}, L::Int)
 For each motif in `independent_motifs`, compute the number of observed motifs in each sequence
 in `seqs`, then divide by the sequence length, take the average of these intensive fractions
 over the sequences, and multiply by the model length L.
 """
-function _compute_n_obs(seqs::Vector{<:AbstractString}, independent_motifs::Union{Vector{<:AbstractString},Vector{<:AbstractChar}}, L::Int)
+function ComputeNumObservations(seqs::Vector{<:AbstractString}, independent_motifs::Union{Vector{<:AbstractString},Vector{<:AbstractChar}}, L::Int)
     Lseqs = length.(seqs)
     return L .* [mean(count.(m, seqs, overlap=true) ./ Lseqs) for m in independent_motifs]    
 end
 
 
-function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vector{Char}, motifs::Vector{<:AbstractString}, 
+"""
+    DimerForceWithFields(seqs::Vector{<:AbstractString}, nucleotides::Vector{Char}, motifs::Vector{<:AbstractString}, 
+                     Lmodel::Union{Int,Missing}=missing; tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
+
+"""
+function DimerForceWithFields(seqs::Vector{<:AbstractString}, nucleotides::Vector{Char}, motifs::Vector{<:AbstractString}, 
                      Lmodel::Union{Int,Missing}=missing; tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
     curr_alphabet = dna_alphabet
     n_nucleotides = length(nucleotides)
     n_motifs = length(motifs)
-    seqs_dna = _preprocess_seqs(seqs)
+    seqs_dna = PreprocessSequences(seqs)
     # compute sequence length
     if ismissing(Lmodel)
         if all(length.(seqs_dna) .== length(seqs_dna[1]))
@@ -217,8 +221,8 @@ function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vect
     else
         L = Lmodel
     end    
-    n_obs_nucs = _compute_n_obs(seqs_dna, nucleotides, L)
-    n_obs_mots = _compute_n_obs(seqs_dna, motifs, L)    
+    n_obs_nucs = ComputeNumObservations(seqs_dna, nucleotides, L)
+    n_obs_mots = ComputeNumObservations(seqs_dna, motifs, L)    
     
     if add_pseudocount
         n_obs_nucs = [x+1 for x in n_obs_nucs]
@@ -226,7 +230,7 @@ function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vect
     end    
     n_obs = [n_obs_nucs; n_obs_mots]
     # I need a function of a unique vector, so I use a "closure", a function defined within function to have access to freqs, motifs, L
-    function closed_eval_log_Z(x)
+    function ClosedEvaluateLogZ(x)
         fields = zeros(4)
         k = 1
         for (i, nt) in enumerate(curr_alphabet)
@@ -236,15 +240,15 @@ function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vect
             end
         end
         forces = x[k:end]
-        return eval_log_Z(fields, forces, motifs, L)
+        return EvaluateLogZ(fields, forces, motifs, L)
     end
     ###########################
     #vars = vcat(fill(log(1/n_nucleotides), n_nucleotides), zeros(n_motifs))
     vars =  zeros(n_nucleotides + n_motifs)
     ###########################
     for l in 1:max_iter
-        ns = FiniteDiff.finite_difference_gradient(closed_eval_log_Z, vars)        
-        dn = FiniteDiff.finite_difference_hessian(closed_eval_log_Z, vars)
+        ns = FiniteDiff.finite_difference_gradient(ClosedEvaluateLogZ, vars)        
+        dn = FiniteDiff.finite_difference_hessian(ClosedEvaluateLogZ, vars)
         delta = inv(dn) * (n_obs .- ns)
         if maximum(abs.(n_obs .- ns)) <= tolerance
             #println("Done! Exiting...")
@@ -267,10 +271,15 @@ function DimerForce_withFields(seqs::Vector{<:AbstractString}, nucleotides::Vect
 end
 
 
-function DimerForce_onlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:AbstractString}, fields::Vector{Float64},
+"""
+    DimerForceOnlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:AbstractString}, fields::Vector{Float64},
+                                Lmodel::Union{Int,Missing}=missing; tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
+
+"""
+function DimerForceOnlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:AbstractString}, fields::Vector{Float64},
                                 Lmodel::Union{Int,Missing}=missing; tolerance::Float64=0.01, max_iter::Int=100, add_pseudocount=true)
     n_motifs = length(motifs)
-    seqs_dna = _preprocess_seqs(seqs)
+    seqs_dna = PreprocessSequences(seqs)
     # compute sequence length
     if ismissing(Lmodel)
         if all(length.(seqs_dna) .== length(seqs_dna[1]))
@@ -283,18 +292,18 @@ function DimerForce_onlyForces(seqs::Vector{<:AbstractString}, motifs::Vector{<:
     else
         L = Lmodel
     end    
-    n_obs = _compute_n_obs(seqs_dna, motifs, L)
+    n_obs = ComputeNumObservations(seqs_dna, motifs, L)
     if add_pseudocount
         n_obs = [x+1 for x in n_obs]
     end
     # I need a function of a unique vector, so I use a "closure", a function defined within function to have access to freqs, motifs, L
-    function closed_eval_log_Z(fs)
-        return eval_log_Z(fields, fs, motifs, L)
+    function ClosedEvaluateLogZ(fs)
+        return EvaluateLogZ(fields, fs, motifs, L)
     end
     forces = zeros(n_motifs)       
     for l in 1:max_iter
-        ns = FiniteDiff.finite_difference_gradient(closed_eval_log_Z, forces)        
-        dn = FiniteDiff.finite_difference_hessian(closed_eval_log_Z, forces)
+        ns = FiniteDiff.finite_difference_gradient(ClosedEvaluateLogZ, forces)        
+        dn = FiniteDiff.finite_difference_hessian(ClosedEvaluateLogZ, forces)
         df = inv(dn) * (n_obs .- ns)
         if maximum(abs.(n_obs .- ns)) <= tolerance
             break
@@ -340,7 +349,7 @@ function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs:
     if ismissing(freqs) # infer also fields
         new_nts, new_mots = GaugeAwayVariables(motifs, true)
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
-        t_res = DimerForce_withFields(seqs, new_nts, new_mots, L; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForceWithFields(seqs, new_nts, new_mots, L; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return FixFinalGauge!(t_res)
@@ -350,7 +359,7 @@ function DimerForce(seq::Union{AbstractString,Vector{<:AbstractString}}, motifs:
         discarded_mots = [mot for mot in motifs if !(mot in new_mots)]
         # from freqs to fields
         fields = log.(freqs)
-        t_res = DimerForce_onlyForces(seqs, new_mots, fields, L; tolerance=tolerance, max_iter=max_iter, 
+        t_res = DimerForceOnlyForces(seqs, new_mots, fields, L; tolerance=tolerance, max_iter=max_iter, 
                                      add_pseudocount=add_pseudocount)
         [t_res[mot] = 0 for mot in discarded_mots] # include in final output motifs put to 0 through gauge
         return t_res
@@ -359,10 +368,12 @@ end
 
 
 """
+    ComputeEnergy(seq::AbstractString, fields_forces::Dict{String, Float64})
+
 Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (as a single dict), 
 compute the energy of this sequence.
 """
-function compute_energy(seq::AbstractString, fields_forces::Dict{String, Float64})
+function ComputeEnergy(seq::AbstractString, fields_forces::Dict{String, Float64})
     e = 0
     for k in keys(fields_forces)
         e += count(k, seq, overlap=true) * fields_forces[k]
@@ -372,12 +383,14 @@ end
 
 
 """
+    ComputeLoglikelihood(seq::AbstractString, fields_forces::Dict{String, Float64}; logZ=missing)
+
 Given a sequence seq, the single-nucleotide fields and the dinucleotide forces (as a single dict),
 compute the log-likelihood (energy minus log of Z) of this sequence.
 logZ can be passed directly if pre-computed, otherwise is it computed each time this function is called.
 """
-function compute_loglikelihood(seq::AbstractString, fields_forces::Dict{String, Float64}; logZ=missing)
-    e = compute_energy(seq, fields_forces)
+function ComputeLoglikelihood(seq::AbstractString, fields_forces::Dict{String, Float64}; logZ=missing)
+    e = ComputeEnergy(seq, fields_forces)
     if ismissing(logZ)
         ks = keys(fields_forces)
         k1 = string.(dna_alphabet)
@@ -385,7 +398,7 @@ function compute_loglikelihood(seq::AbstractString, fields_forces::Dict{String, 
         fields = [fields_forces[k] for k in k1]
         forces = [fields_forces[k] for k in k2]
         L = length(seq)
-        logz = eval_log_Z(fields, forces, k2, L)
+        logz = EvaluateLogZ(fields, forces, k2, L)
     else
         logz = logZ
     end
@@ -394,11 +407,12 @@ end
 
 
 """
-    marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int)
+    Marginal2Points(fields_forces::Dict{String, Float64}, L::Int, pos::Int)
+
 Given a model specified by fields and forces and sequence length, compute the 2-point marginal in position
 (i-1, i). The result is returned as a dictionary "s_(i-1) s_i" => probability.
 """
-function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int)
+function Marginal2Points(fields_forces::Dict{String, Float64}, L::Int, pos::Int)
     # collect fields and forces
     ks = keys(fields_forces)
     k1 = string.(dna_alphabet)
@@ -407,13 +421,13 @@ function marginal_2points(fields_forces::Dict{String, Float64}, L::Int, pos::Int
     forces = [fields_forces[k] for k in k2]
     
     # build transfer matrices
-    motsM = generate_motsM(k2)
+    motsM = GenerateMotifMatrix(k2)
     M = ones((len_alphabet, len_alphabet))
     for j in 1:length(forces)
         M .*= exp.(forces[j] * motsM[j])
     end
-    TM = M .* generate_nucsM(fields, false) # this is the transfer matrix
-    last_mat = M .* generate_nucsM(fields, true) # last matrix is special
+    TM = M .* GenerateNucleotideMatrix(fields, false) # this is the transfer matrix
+    last_mat = M .* GenerateNucleotideMatrix(fields, true) # last matrix is special
 
     # compute marginals
     @assert (pos >= 2) & (pos <= L) "Please provide a position 'pos' between 2 and L (included)."
@@ -507,16 +521,17 @@ end
 
 
 """
-    marginal_1point(marginal_2points; first::Bool=true)
+    Marginal1Point(Marginal2Points::Dict{String, Float64}; first::Bool=true)
+
 Given the 2point marginal, sum over the second symbol (if first=true, otherwise 
 over the first) to obtain the 1-point marginal.
 """
-function marginal_1point(marginal_2points::Dict{String, Float64}; first::Bool=true)
-    alphabet = string.(unique(collect(prod(keys(marginal_2points)))))
+function Marginal1Point(Marginal2Points::Dict{String, Float64}; first::Bool=true)
+    alphabet = string.(unique(collect(prod(keys(Marginal2Points)))))
     mat = Array{Float64}(undef, 4,4)
     for (i,a) in enumerate(alphabet)
         for (j,b) in enumerate(alphabet)
-            mat[i,j] = marginal_2points[a*b]
+            mat[i,j] = Marginal2Points[a*b]
         end
     end
     if first
@@ -528,17 +543,18 @@ end
 
 
 """
-    marginal_1given_previous(marginal_2points::Dict{String, Float64}; first::Bool=true)
+    Marginal1GivenPrevious(Marginal2Points::Dict{String, Float64}, fixed::AbstractString; first::Bool=true)
+
 Given the 2point marginal, fix the first symbol (if `first`=true, otherwise 
 fix the second) to obtain the probability of the second given that the first is equal
 to `fixed` (or viceversa if `first`=false).
 """
-function marginal_1given_previous(marginal_2points::Dict{String, Float64}, fixed::AbstractString; first::Bool=true)
-    alphabet = string.(unique(collect(prod(keys(marginal_2points)))))
+function Marginal1GivenPrevious(Marginal2Points::Dict{String, Float64}, fixed::AbstractString; first::Bool=true)
+    alphabet = string.(unique(collect(prod(keys(Marginal2Points)))))
     mat = Array{Float64}(undef, 4,4)
     for (i,a) in enumerate(alphabet)
         for (j,b) in enumerate(alphabet)
-            mat[i,j] = marginal_2points[a*b]
+            mat[i,j] = Marginal2Points[a*b]
         end
     end
     @assert fixed in alphabet "Please fix the symbol as one from: $(alphabet)."
