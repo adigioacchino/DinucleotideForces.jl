@@ -571,6 +571,4 @@ function Marginal1GivenPrevious(Marginal2Points::Dict{String, Float64}, fixed::A
 end
 
 
-
-
-end # end of the package
+end

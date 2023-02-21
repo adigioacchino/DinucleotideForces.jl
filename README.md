@@ -23,3 +23,11 @@ usage of the scripts.
 ## Acknowledgements
 Previous versions of these algorithms were developed by Simona Cocco,
 Benjamin D. Greenbaum, Rémi Monasson, Alexander Solovyov and Petr Šulc.
+
+## TODO:
+- add code & tests on exact sampling
+- write documentation
+- update README
+- remove unnecessary files 
+- add CI & codecov
+- remove these TODOs
