@@ -1,7 +1,7 @@
 name = "DinucleotideForces"
 uuid = "66e19a02-199b-4fc6-9df3-bc34889072ed"
 authors = ["digioacchino "]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
