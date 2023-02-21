@@ -1,5 +1,4 @@
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://adigioacchino.github.io/DinucleotideForces.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://adigioacchino.github.io/DinucleotideForces.jl/dev/)
 [![Build Status](https://github.com/adigioacchino/DinucleotideForces.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/adigioacchino/DinucleotideForces.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![Coverage](https://codecov.io/gh/adigioacchino/DinucleotideForces.jl/branch/master/graph/badge.svg?token=IEK72KZ0GV)](https://codecov.io/gh/adigioacchino/DinucleotideForces.jl)
 
