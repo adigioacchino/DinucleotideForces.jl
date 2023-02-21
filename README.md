@@ -17,7 +17,3 @@ Pkg.add(url="https://github.com/adigioacchino/DinucleotideForces.jl")
 ## Acknowledgements
 Previous versions of these algorithms were developed by Simona Cocco,
 Benjamin D. Greenbaum, Rémi Monasson, Alexander Solovyov and Petr Šulc.
-
-## TODO:
-- add CI & codecov
-- remove these TODOs
