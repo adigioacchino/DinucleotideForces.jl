@@ -4,6 +4,8 @@ using Octavian
 using LinearAlgebra
 using FiniteDiff
 using Statistics
+using Random
+using StatsBase
 
 export DimerForce
 
@@ -570,5 +572,30 @@ function Marginal1GivenPrevious(Marginal2Points::Dict{String, Float64}, fixed::A
     return Dict(zip(alphabet, res))
 end
 
+
+"""
+    SampleSequence(fields_forces::Dict{String, Float64}, L::Int, 
+                        rng::AbstractRNG=Xoshiro(123))
+
+Sample a sequence of length `L` from the model specified by the
+parameters in `fields_forces`. The sampling is exact (that is 
+the correct probability distribution is sampled) and a random 
+generator can be specified via `rng`. 
+"""
+function SampleSequence(fields_forces::Dict{String, Float64}, L::Int, 
+                        rng::AbstractRNG=Xoshiro(123))
+    p_12 = Marginal2Points(fields_forces, L, 2)
+    ks = collect(keys(p_12))
+    vs = [p_12[k] for k in ks]
+    seq = sample(rng, ks, Weights(vs))
+    for i in 2:L-1
+        pre_p_i = Marginal2Points(fields_forces, L, i+1)
+        p_i = Marginal1GivenPrevious(pre_p_i, string(seq[i]))
+        ks = collect(keys(p_i))
+        vs = [p_i[k] for k in ks]
+        seq *= sample(rng, ks, Weights(vs))
+    end
+    return seq
+end
 
 end
