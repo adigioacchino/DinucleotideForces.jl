@@ -20,7 +20,7 @@ So a positive force on a nucleotide corresponds to a pressure to have more occur
 Forces are inferred through a [maximum entropy model](https://en.wikipedia.org/wiki/Principle_of_maximum_entropy).
 For a more formal definition give a look at [this paper](https://www.pnas.org/content/111/13/5054.short).
 
-## Citing
+## How to cite this package
 If this package is used for research purposes, please consider citing [this](https://doi.org/10.1093/molbev/msab036) 
 and [this](https://www.pnas.org/content/111/13/5054.short) papers.
 
