@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/adigioacchino/DinucleotideForces.jl/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/adigioacchino/DinucleotideForces.jl/actions/workflows/CI.yml?query=branch%3Amaster)
 [![Coverage](https://codecov.io/gh/adigioacchino/DinucleotideForces.jl/branch/master/graph/badge.svg?token=IEK72KZ0GV)](https://codecov.io/gh/adigioacchino/DinucleotideForces.jl)
 
-# Algorithms for computing coding and non-coding dinucleotide forces, in Julia
+# Dinucleotide force computation in Julia
 Please have a look at the [documentation](https://adigioacchino.github.io/DinucleotideForces.jl/stable/) for definitions and examples.
 
 ## Installation
