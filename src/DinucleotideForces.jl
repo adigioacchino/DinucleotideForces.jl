@@ -334,8 +334,7 @@ Finally, tolerance and max_iter are parameters for the Newton-Raphson algorithm
 used to solve the system of equations.
 If add_pseudocount, a single pseudocount is added for each observed number of
 nucleotides and dinucleotides.
-seq can be a single sequence or a vector of sequences (in this second case, the sequences
-must have all the same length).
+seq can be a single sequence or a vector of sequences.
 L can be used to define the length of the modeled sequence. If not given, the length of the sequence will be used if a single 
 sequence or a set of sequences of the same lengths are provided. Otherwise, the default value of 5000 will be used.
 """

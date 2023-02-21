@@ -1,0 +1,3 @@
+[deps]
+DinucleotideForces = "66e19a02-199b-4fc6-9df3-bc34889072ed"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"

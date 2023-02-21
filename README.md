@@ -1,32 +1,23 @@
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://adigioacchino.github.io/DinucleotideForces.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://adigioacchino.github.io/DinucleotideForces.jl/dev/)
+[![Build Status](https://github.com/adigioacchino/DinucleotideForces.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/adigioacchino/DinucleotideForces.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/adigioacchino/DinucleotideForces.jl/branch/main/graph/badge.svg?token=IEK72KZ0GV)](https://codecov.io/gh/adigioacchino/DinucleotideForces.jl)
+
 # Algorithms for computing coding and non-coding dinucleotide forces, in Julia
+Please have a look at the [documentation](https://adigioacchino.github.io/DinucleotideForces.jl/stable/) for definitions and examples.
 
-This repository contains the code to compute dinucleotide forces (for a definition
-give a look a [this paper](https://www.pnas.org/content/111/13/5054.short)),
-as well as a simple example of its use.
-For any question or comment concerning the code please contact Andrea Di Gioacchino,
-<andrea.dgioacchino@gmail.com>.
+## Installation
+This package is not registered. Install with:
 
-All of the code is written in Julia.
-
-## Depdendencies
-[FiniteDiff.jl](https://github.com/JuliaDiff/FiniteDiff.jl) must be installed
-to use the script. 
-Moreover an installation of [jupyter](https://jupyter.org) is needed to run the `*.ipynb` notebook.
-
-## Repository structure:
-- The `NoncodingForces_v2_1.jl` file containts the script to compute forces
-in the non-coding case (without caring about codons); 
-- The `example.ipynb` notebook contains a short tutorial of the
-usage of the scripts.
-
+```julia
+import Pkg
+Pkg.add(url="https://github.com/adigioacchino/DinucleotideForces.jl")
+```
 
 ## Acknowledgements
 Previous versions of these algorithms were developed by Simona Cocco,
 Benjamin D. Greenbaum, Rémi Monasson, Alexander Solovyov and Petr Šulc.
 
 ## TODO:
-- write documentation
-- update README
-- remove unnecessary files 
 - add CI & codecov
 - remove these TODOs
